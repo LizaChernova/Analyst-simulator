@@ -10,12 +10,7 @@ import os
 
 
 
-connection = {
-    'host': 'https://clickhouse.lab.karpov.courses',
-    'password': 'dpo_python_2020',
-    'user': 'student',
-    'database': 'simulator'
-}
+
 
 
 metrics = ['users_lenta', 'views', 'likes', 'CTR', 'users_message', 'messages']
@@ -43,8 +38,8 @@ def check_anomaly(df, metric, threshold):
 
 
 def run_alerts(chat=None):
-    chat_id = chat or -727662986
-    bot = telegram.Bot(token='5217433430:AAG4xJl21Imx5yqnLP7SJS4oCpriSR9SDeQ')
+    chat_id = chat or ...
+    bot = telegram.Bot(token='...')
 
     
     q_1 = ''' with t1
