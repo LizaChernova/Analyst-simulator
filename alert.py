@@ -1,3 +1,7 @@
+# Учебный проект написания система алертов для приложения, включаещего ленты новостей и мессенджер. 
+# Система должна с периодичность каждые 15 минут проверять ключевые метрики, такие как активные пользователи в ленте / мессенджере, просмотры, лайки,
+# CTR, количество отправленных сообщений. В случае обнаружения аномального значения в чат отправляется алерт.
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -7,13 +11,11 @@ from datetime import date
 import io
 import sys
 import os
-
-
-
-
-
+from read_db.CH import Getch
 
 metrics = ['users_lenta', 'views', 'likes', 'CTR', 'users_message', 'messages']
+
+# Объявим функцию поиска аномалии. Для выявления аномалии будем сравнивать текущий показатель в данную 15-минутку с таким же показателем за вчера.
 
 def check_anomaly(df, metric, threshold):
     current_ts = df['ts'].max()  
@@ -36,32 +38,32 @@ def check_anomaly(df, metric, threshold):
 
     return is_alert, current_value, diff
 
+# Объявим функцию отпрвки сообщения. На вход она принимает id чата (по умолчанию - none), затем укажем, что это будет или специально заданным нами id,
+# или наша личка с ботом по умолчанию. Заведем телеграмм-бота.
 
 def run_alerts(chat=None):
     chat_id = chat or ...
     bot = telegram.Bot(token='...')
 
     
-    q_1 = ''' with t1
-as (SELECT toStartOfFifteenMinutes(time) as m_ts, count(DISTINCT user_id) as users_message, count(user_id) as messages
+    q_1 = Getch(''' WITH t1
+AS (SELECT toStartOfFifteenMinutes(time) AS m_ts, COUNT(DISTINCT user_id) AS users_message, COUNT(user_id) AS messages
 FROM simulator_20220120.message_actions 
-group by m_ts),
+GROUP BY m_ts),
 t2
-as 
-(SELECT toStartOfFifteenMinutes(time) as f_ts, count(DISTINCT user_id) as users_lenta, countIf(user_id, action= 'like') as likes, countIf(user_id, action='view') as views,
-ROUND(countIf(user_id, action= 'like')/countIf(user_id, action='view')*100,2) as CTR
+AS (SELECT toStartOfFifteenMinutes(time) AS f_ts, COUNT(DISTINCT user_id) AS users_lenta, COUNTIF(user_id, action= 'like') AS likes,
+COUNTIF(user_id, action='view') AS views,
+ROUND(COUNTIF(user_id, action= 'like')/COUNTIF(user_id, action='view')*100,2) AS CTR
 FROM simulator_20220120.feed_actions 
-group by f_ts)
+GROUP BY f_ts)
 
-SELECT f_ts as ts, toDate(f_ts) as date, formatDateTime(f_ts, '%R') as hm, users_lenta, likes, views, CTR, users_message, messages
-from t1 join t2
-on t1.m_ts = t2.f_ts
-WHERE f_ts >=  today() - 1 and f_ts < toStartOfFifteenMinutes(now())
-order by ts'''
+SELECT f_ts AS ts, toDate(f_ts) AS date, formatDateTime(f_ts, '%R') AS hm, users_lenta, likes, views, CTR, users_message, messages
+FROM t1 JOIN t2
+ON t1.m_ts = t2.f_ts
+WHERE f_ts >=  today() - 1 AND f_ts < toStartOfFifteenMinutes(now())
+ORDER BY ts''').df
     
-    data = pandahouse.read_clickhouse(q_1, connection=connection)  
-
-
+    
     for metric in metrics:
     
         is_alert, current_value, diff = check_anomaly(data, metric, threshold=0.3) 
@@ -93,9 +95,12 @@ order by ts'''
                 link = 'http://superset.lab.karpov.courses/r/495'
                 duty = '@C_Spearman'
                 
-                
-            msg = '''Метрика {metric} для {m_type}.\nТекущее значение - {current_value:.2f}.\nОтклонение от вчера {diff:.2%}.\nCсылка на график: {link}.\nСсылка на оперативный дашборд: http://superset.lab.karpov.courses/r/489.\n{duty}, обратите внимание.'''.format(metric=metric, m_type=m_type,                                                                                                                current_value=current_value,                                                                                                            diff=diff,                                                                                                                     link=link,                                                                                                                     duty=duty)
-            
+     # Для нагладности в сообщение добавим график, ссылку на оперативный дашборд и загетаем ответственного человека в случае отклонения конкретной метрики.
+    
+            msg = '''Метрика {metric} для {m_type}.\nТекущее значение -
+            {current_value:.2f}.\nОтклонение от вчера {diff:.2%}.\nCсылка на график: {link}.\nСсылка на оперативный дашборд:
+            http://superset.lab.karpov.courses/r/489.\n{duty}, обратите внимание.'''.format(metric=metric, m_type=m_type, current_value=current_value, diff=diff,  
+                                                                                            link=link, duty=duty)
            
             sns.set(rc={'figure.figsize': (16, 10)})  
             plt.tight_layout()
@@ -124,8 +129,7 @@ order by ts'''
             plot_object.name = '{0}.png'.format(metric)
             plt.close()
 
-    
-                
+                   
             bot.sendMessage(chat_id=chat_id, text=msg)
             bot.sendPhoto(chat_id=chat_id, photo=plot_object)
 try:
